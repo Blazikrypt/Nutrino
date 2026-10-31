@@ -1,12 +1,143 @@
 'use server';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+import { generateGeminiJson } from '../lib/gemini';
+import { createClient } from '../lib/supabase/server';
+
+type FoodAnalysis = {
+    food_name: string;
+    calories: number | string;
+    protein: number | string;
+    carbs: number | string;
+    fats: number | string;
+    portion_estimate: string;
+};
+
+type UserProfileInput = {
+    goal?: string;
+    diet?: string;
+    allergies?: string;
+    location?: string;
+    age?: string;
+    gender?: string;
+    height?: string;
+    weight?: string;
+    activityLevel?: string;
+};
+
+type MealSuggestion = {
+    name: string;
+    description: string;
+    calories: number;
+    tags: string[];
+    diet_type: 'Veg' | 'Non-Veg' | 'Egg';
+};
+
+type MealSuggestions = { suggestions: MealSuggestion[] };
+
+type MealDetails = {
+    name: string;
+    description: string;
+    macros: {
+        calories: number;
+        protein: string;
+        carbs: string;
+        fats: string;
+    };
+    tags: Array<{ label: string; icon: string }>;
+    why_it_fits: string;
+    ingredients: Array<{ name: string; quantity: string }>;
+    steps: Array<{ title: string; description: string }>;
+};
+
+type DailyTargets = {
+    calories: number;
+    protein: number;
+    carbs: number;
+    fats: number;
+    explanation: string;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const isFoodAnalysis = (value: unknown): value is FoodAnalysis => {
+    if (!isRecord(value)) return false;
+    const result = value as Record<string, unknown>;
+    return typeof result.food_name === 'string'
+        && (typeof result.calories === 'number' || typeof result.calories === 'string')
+        && (typeof result.protein === 'number' || typeof result.protein === 'string')
+        && (typeof result.carbs === 'number' || typeof result.carbs === 'string')
+        && (typeof result.fats === 'number' || typeof result.fats === 'string')
+        && typeof result.portion_estimate === 'string';
+};
+
+const isMealSuggestions = (value: unknown): value is MealSuggestions =>
+    isRecord(value)
+    && Array.isArray(value.suggestions)
+    && value.suggestions.every((suggestion: unknown) =>
+        isRecord(suggestion)
+        && typeof suggestion.name === 'string'
+        && typeof suggestion.description === 'string'
+        && typeof suggestion.calories === 'number'
+        && Number.isFinite(suggestion.calories)
+        && Array.isArray(suggestion.tags)
+        && suggestion.tags.every((tag: unknown) => typeof tag === 'string')
+        && ['Veg', 'Non-Veg', 'Egg'].includes(String(suggestion.diet_type)),
+    );
+
+const isMealDetails = (value: unknown): value is MealDetails =>
+    isRecord(value)
+    && typeof value.name === 'string'
+    && typeof value.description === 'string'
+    && isRecord(value.macros)
+    && typeof value.macros.calories === 'number'
+    && Number.isFinite(value.macros.calories)
+    && typeof value.macros.protein === 'string'
+    && typeof value.macros.carbs === 'string'
+    && typeof value.macros.fats === 'string'
+    && Array.isArray(value.tags)
+    && value.tags.every((tag: unknown) =>
+        isRecord(tag) && typeof tag.label === 'string' && typeof tag.icon === 'string',
+    )
+    && typeof value.why_it_fits === 'string'
+    && Array.isArray(value.ingredients)
+    && value.ingredients.every((ingredient: unknown) =>
+        isRecord(ingredient)
+        && typeof ingredient.name === 'string'
+        && typeof ingredient.quantity === 'string',
+    )
+    && Array.isArray(value.steps)
+    && value.steps.every((step: unknown) =>
+        isRecord(step)
+        && typeof step.title === 'string'
+        && typeof step.description === 'string',
+    );
+
+const isDailyTargets = (value: unknown): value is DailyTargets =>
+    isRecord(value)
+    && typeof value.calories === 'number'
+    && Number.isFinite(value.calories)
+    && typeof value.protein === 'number'
+    && Number.isFinite(value.protein)
+    && typeof value.carbs === 'number'
+    && Number.isFinite(value.carbs)
+    && typeof value.fats === 'number'
+    && Number.isFinite(value.fats)
+    && typeof value.explanation === 'string';
+
+async function requireAuthenticatedUser() {
+    const supabase = await createClient();
+    const { data: { user }, error } = await supabase.auth.getUser();
+    if (error || !user) {
+        throw new Error('You must be signed in to use this feature.');
+    }
+}
 
 export async function analyzeFoodImage(formData: FormData) {
+    await requireAuthenticatedUser();
     const file = formData.get('image') as File;
-    if (!file) {
-        return { error: 'No image provided' };
+    if (!file || file.size === 0) {
+        return { success: false as const, error: 'No image provided.' };
     }
 
     try {
@@ -43,84 +174,17 @@ export async function analyzeFoodImage(formData: FormData) {
             ]
         };
 
-        const response = await fetch(API_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(requestBody)
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Gemini API Error:', errorText);
-
-            // Fallback to mock data on error (e.g. Quota Exceeded 429) to unblock user
-            console.log('Falling back to mock data due to API error.');
-            return {
-                success: true,
-                data: {
-                    food_name: "Grilled Chicken Salad (Mock)",
-                    calories: 350,
-                    protein: "35g",
-                    carbs: "12g",
-                    fats: "18g",
-                    portion_estimate: "1 bowl (approx 300g)",
-                    is_mock: true
-                }
-            };
-        }
-
-        const data = await response.json();
-        const textOutput = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (!textOutput) {
-            console.log('No text output, using mock data.');
-            return {
-                success: true,
-                data: {
-                    food_name: "Grilled Chicken Salad (Mock)",
-                    calories: 350,
-                    protein: "35g",
-                    carbs: "12g",
-                    fats: "18g",
-                    portion_estimate: "1 bowl (approx 300g)",
-                    is_mock: true
-                }
-            };
-        }
-
-        // Attempt to parse JSON
-        try {
-            const cleanJson = textOutput.replace(/```json/g, '').replace(/```/g, '').trim();
-            const parsed = JSON.parse(cleanJson);
-            return { success: true, data: parsed };
-        } catch (e) {
-            console.error('JSON Parse Error:', e);
-            return { error: 'Failed to parse Gemini response.', raw: textOutput };
-        }
-
+        return await generateGeminiJson(requestBody, isFoodAnalysis, 'analyzeFoodImage');
     } catch (error) {
-        console.error('Server Action Error:', error);
-        // Fallback to mock data on network error
-        return {
-            success: true,
-            data: {
-                food_name: "Grilled Chicken Salad (Mock)",
-                calories: 350,
-                protein: "35g",
-                carbs: "12g",
-                fats: "18g",
-                portion_estimate: "1 bowl (approx 300g)",
-                is_mock: true
-            }
-        };
+        console.error('analyzeFoodImage failed while reading the image.', error);
+        return { success: false as const, error: 'Could not process the image. Please try again.' };
     }
 }
 
 export async function analyzeFoodText(description: string) {
+    await requireAuthenticatedUser();
     if (!description.trim()) {
-        return { error: 'No description provided' };
+        return { success: false as const, error: 'Please describe the food first.' };
     }
 
     try {
@@ -149,80 +213,15 @@ export async function analyzeFoodText(description: string) {
             ]
         };
 
-        const response = await fetch(API_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(requestBody)
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Gemini API Error:', errorText);
-
-            // Fallback to mock data on error
-            console.log('Falling back to mock data due to API error.');
-            return {
-                success: true,
-                data: {
-                    food_name: "Idlis with Sambar (Mock)",
-                    calories: 320,
-                    protein: "12g",
-                    carbs: "50g",
-                    fats: "6g",
-                    portion_estimate: "2 pieces with bowl of sambar",
-                    is_mock: true
-                }
-            };
-        }
-
-        const data = await response.json();
-        const textOutput = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (!textOutput) {
-            return {
-                success: true,
-                data: {
-                    food_name: "Idlis with Sambar (Mock)",
-                    calories: 320,
-                    protein: "12g",
-                    carbs: "50g",
-                    fats: "6g",
-                    portion_estimate: "2 pieces with bowl of sambar",
-                    is_mock: true
-                }
-            };
-        }
-
-        try {
-            const cleanJson = textOutput.replace(/```json/g, '').replace(/```/g, '').trim();
-            const parsed = JSON.parse(cleanJson);
-            return { success: true, data: parsed };
-        } catch (e) {
-            console.error('JSON Parse Error:', e);
-            return { error: 'Failed to parse Gemini response.', raw: textOutput };
-        }
-
+        return await generateGeminiJson(requestBody, isFoodAnalysis, 'analyzeFoodText');
     } catch (error) {
-        console.error('Server Action Error:', error);
-        return {
-            success: true,
-            data: {
-                food_name: "Idlis with Sambar (Mock)",
-                calories: 320,
-                protein: "12g",
-                carbs: "50g",
-                fats: "6g",
-                portion_estimate: "2 pieces with bowl of sambar",
-                is_mock: true
-            }
-        };
+        console.error('analyzeFoodText failed while preparing the request.', error);
+        return { success: false as const, error: 'Could not process the food description. Please try again.' };
     }
 }
 
-export async function generateMealSuggestions(userProfile: any, filterType: string = 'Balanced') {
-    try {
+export async function generateMealSuggestions(userProfile: UserProfileInput, filterType: string = 'Balanced') {
+        await requireAuthenticatedUser();
         const prompt = `
       You are a nutritionist. Suggest 2 meal options based on the following user profile and filter.
       
@@ -261,55 +260,11 @@ export async function generateMealSuggestions(userProfile: any, filterType: stri
             contents: [{ parts: [{ text: prompt }] }]
         };
 
-        const response = await fetch(API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody)
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Gemini API Error (Suggestions):', errorText);
-            throw new Error('API request failed');
-        }
-
-        const data = await response.json();
-        const textOutput = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (!textOutput) throw new Error('No output from Gemini');
-
-        const cleanJson = textOutput.replace(/```json/g, '').replace(/```/g, '').trim();
-        return { success: true, data: JSON.parse(cleanJson) };
-
-    } catch (error) {
-        console.error('generateMealSuggestions Error:', error);
-        // Fallback Mock Data
-        return {
-            success: true,
-            data: {
-                suggestions: [
-                    {
-                        name: "Mediterranean Quinoa Bowl (Fallback)",
-                        description: "Quinoa, chickpeas, cucumber, cherry tomatoes, feta cheese, extra virgin olive oil",
-                        calories: 450,
-                        tags: ["High Fiber", "Balanced Choice"],
-                        diet_type: "Veg"
-                    },
-                    {
-                        name: "Grilled Salmon & Asparagus (Fallback)",
-                        description: "Wild salmon fillet, asparagus spears, lemon zest, garlic butter, sea salt",
-                        calories: 520,
-                        tags: ["Omega-3 Rich", "High Protein"],
-                        diet_type: "Non-Veg"
-                    }
-                ]
-            }
-        };
-    }
+        return await generateGeminiJson(requestBody, isMealSuggestions, 'generateMealSuggestions');
 }
 
-export async function generateMealDetails(mealName: string, userProfile: any) {
-    try {
+export async function generateMealDetails(mealName: string, userProfile: UserProfileInput) {
+        await requireAuthenticatedUser();
         const prompt = `
       You are a nutritionist. Provide detailed nutritional analysis and preparation steps for the meal: "${mealName}".
       
@@ -350,51 +305,11 @@ export async function generateMealDetails(mealName: string, userProfile: any) {
             contents: [{ parts: [{ text: prompt }] }]
         };
 
-        const response = await fetch(API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody)
-        });
-
-        if (!response.ok) {
-            throw new Error('API request failed');
-        }
-
-        const data = await response.json();
-        const textOutput = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (!textOutput) throw new Error('No output from Gemini');
-
-        const cleanJson = textOutput.replace(/```json/g, '').replace(/```/g, '').trim();
-        return { success: true, data: JSON.parse(cleanJson) };
-
-    } catch (error) {
-        console.error('generateMealDetails Error:', error);
-        // Fallback Mock Data
-        return {
-            success: true,
-            data: {
-                name: mealName,
-                description: "Delicious and nutritious meal option.",
-                macros: { calories: 450, protein: "20g", carbs: "40g", fats: "15g" },
-                tags: [{ label: "Balanced", icon: "scale" }],
-                why_it_fits: "A great balanced option for your daily goals.",
-                ingredients: [
-                    { name: "Main Ingredient", quantity: "1 serving" },
-                    { name: "Vegetables", quantity: "1 cup" }
-                ],
-                steps: [
-                    { title: "Prepare ingredients", description: "Chop and prep all vegetables and protein." },
-                    { title: "Cook", description: "Cook on medium heat until done." },
-                    { title: "Serve", description: "Serve hot." }
-                ]
-            }
-        };
-    }
+        return await generateGeminiJson(requestBody, isMealDetails, 'generateMealDetails');
 }
 
-export async function calculateDailyTargets(userProfile: any) {
-    try {
+export async function calculateDailyTargets(userProfile: UserProfileInput) {
+        await requireAuthenticatedUser();
         const prompt = `
       You are an expert nutritionist. Calculate the daily calorie and macronutrient targets for a user with the following profile:
       
@@ -404,7 +319,7 @@ export async function calculateDailyTargets(userProfile: any) {
       - Weight: ${userProfile.weight}
       - Goal: ${userProfile.goal} (e.g., fat_loss, muscle_gain, maintenance)
       - Diet: ${userProfile.diet}
-      - Activity Level: Moderate (assume average if not specified)
+      - Activity Level: ${userProfile.activityLevel || 'moderate'}
 
       Task:
       1. Calculate BMR (Basal Metabolic Rate) using the Mifflin-St Jeor equation.
@@ -429,36 +344,5 @@ export async function calculateDailyTargets(userProfile: any) {
             contents: [{ parts: [{ text: prompt }] }]
         };
 
-        const response = await fetch(API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody)
-        });
-
-        if (!response.ok) {
-            throw new Error('API request failed');
-        }
-
-        const data = await response.json();
-        const textOutput = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (!textOutput) throw new Error('No output from Gemini');
-
-        const cleanJson = textOutput.replace(/```json/g, '').replace(/```/g, '').trim();
-        return { success: true, data: JSON.parse(cleanJson) };
-
-    } catch (error) {
-        console.error('calculateDailyTargets Error:', error);
-        // Fallback to rough estimation if API fails
-        return {
-            success: false,
-            data: {
-                calories: 2000,
-                protein: 125,
-                carbs: 225,
-                fats: 65,
-                explanation: "Estimated based on defaults due to connection error."
-            }
-        };
-    }
+        return await generateGeminiJson(requestBody, isDailyTargets, 'calculateDailyTargets');
 }

@@ -1,60 +1,81 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import type { ActivityLevel, Diet, Goal, UserProfileForm } from '../lib/database.types';
 
 interface ProfileProps {
-    userProfile: any;
-    onUpdateProfile: (newProfile: any) => void;
+    userProfile: UserProfileForm;
+    onUpdateProfile: (newProfile: UserProfileForm) => Promise<void>;
     onBack: () => void;
 }
 
 export default function Profile({ userProfile, onUpdateProfile, onBack }: ProfileProps) {
     const [isEditing, setIsEditing] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [error, setError] = useState('');
 
-    // Form State
     const [name, setName] = useState(userProfile.name || 'User');
-    const [location, setLocation] = useState(userProfile.location || 'Unknown Location');
-    const [goal, setGoal] = useState(userProfile.goal || 'Maintain');
-    const [diet, setDiet] = useState(userProfile.diet || 'Any');
-    const [calories, setCalories] = useState(userProfile.calories || 2100);
+    const [location, setLocation] = useState(userProfile.location);
+    const [goal, setGoal] = useState<Goal>(userProfile.goal);
+    const [diet, setDiet] = useState<Diet>(userProfile.diet);
+    const [activityLevel, setActivityLevel] = useState<ActivityLevel>(userProfile.activityLevel);
+    const [calories, setCalories] = useState(userProfile.calories);
+    const [protein, setProtein] = useState(userProfile.protein);
+    const [carbs, setCarbs] = useState(userProfile.carbs);
+    const [fats, setFats] = useState(userProfile.fats);
     const [allergies, setAllergies] = useState(userProfile.allergies || 'None');
     const [age, setAge] = useState(userProfile.age || '--');
     const [height, setHeight] = useState(userProfile.height || '--');
     const [weight, setWeight] = useState(userProfile.weight || '--');
 
-    useEffect(() => {
-        setName(userProfile.name || 'User');
-        setLocation(userProfile.location || 'Unknown Location');
-        setGoal(userProfile.goal || 'Maintain');
-        setDiet(userProfile.diet || 'Any');
-        setCalories(userProfile.calories || 2100);
-        setAllergies(userProfile.allergies || 'None');
-        setAge(userProfile.age || '--');
-        setHeight(userProfile.height || '--');
-        setWeight(userProfile.weight || '--');
-    }, [userProfile]);
+    const handleSave = async () => {
+        const validMeasurements = Number(age) >= 18 && Number(age) <= 100
+            && Number(height) >= 100 && Number(height) <= 250
+            && Number(weight) >= 30 && Number(weight) <= 350;
+        const validTargets = Number(calories) >= 800 && Number(calories) <= 10000
+            && Number(protein) >= 0 && Number(protein) <= 1000
+            && Number(carbs) >= 0 && Number(carbs) <= 1500
+            && Number(fats) >= 0 && Number(fats) <= 1000
+            && [calories, protein, carbs, fats].every((value) => Number.isFinite(Number(value)));
+        if (!name.trim() || !validMeasurements || !validTargets) {
+            setError('Enter a name and valid daily nutrition targets before saving.');
+            return;
+        }
 
-    const handleSave = () => {
+        setIsSaving(true);
+        setError('');
         const updatedProfile = {
             ...userProfile,
             name,
             location,
             goal,
             diet,
-            calories: parseInt(String(calories)),
+            activityLevel,
+            calories: Number(calories),
+            protein: Number(protein),
+            carbs: Number(carbs),
+            fats: Number(fats),
             allergies,
             age,
             height,
             weight
         };
-        onUpdateProfile(updatedProfile);
-        setIsEditing(false);
+        try {
+            await onUpdateProfile(updatedProfile);
+            setIsEditing(false);
+        } catch (saveError) {
+            console.error('Failed to update profile.', saveError);
+            setError(saveError instanceof Error ? saveError.message : 'Could not save your profile.');
+        } finally {
+            setIsSaving(false);
+        }
     };
 
-    const toggleEdit = () => {
+    const toggleEdit = async () => {
         if (isEditing) {
-            handleSave();
+            await handleSave();
         } else {
+            setError('');
             setIsEditing(true);
         }
     };
@@ -86,7 +107,7 @@ export default function Profile({ userProfile, onUpdateProfile, onBack }: Profil
                             onClick={toggleEdit}
                             className={`flex items-center justify-center rounded-full size-10 shadow-[0_4px_20px_-2px_rgba(27,33,26,0.05)] transition-colors ${isEditing ? 'bg-[#40e830] text-white hover:bg-[#32d625]' : 'bg-[#ffffff] text-[#0f1b0e] hover:bg-gray-50'}`}
                         >
-                            <span className="material-symbols-outlined">{isEditing ? 'check' : 'edit'}</span>
+                            <span className="material-symbols-outlined">{isEditing ? (isSaving ? 'progress_activity' : 'check') : 'edit'}</span>
                         </button>
                     </div>
                 </div>
@@ -118,7 +139,7 @@ export default function Profile({ userProfile, onUpdateProfile, onBack }: Profil
                                     className="text-[#526651] text-sm font-medium uppercase tracking-wide bg-transparent border-none outline-none w-32"
                                 />
                             ) : (
-                                <p className="text-[#526651] text-sm font-medium uppercase tracking-wide">{location}</p>
+                                <p className="text-[#526651] text-sm font-medium uppercase tracking-wide">{location || 'Location not set'}</p>
                             )}
                         </div>
                     </div>
@@ -136,12 +157,12 @@ export default function Profile({ userProfile, onUpdateProfile, onBack }: Profil
                             {isEditing ? (
                                 <select
                                     value={goal}
-                                    onChange={(e) => setGoal(e.target.value)}
+                                    onChange={(e) => setGoal(e.target.value as Goal)}
                                     className="text-[#0f1b0e] text-sm font-bold leading-tight capitalize bg-transparent outline-none w-full text-center"
                                 >
-                                    <option value="Fat Loss">Fat Loss</option>
-                                    <option value="Maintain">Maintain</option>
-                                    <option value="Muscle Gain">Muscle Gain</option>
+                                    <option value="fat_loss">Fat loss</option>
+                                    <option value="maintain">Maintain</option>
+                                    <option value="muscle_gain">Muscle gain</option>
                                 </select>
                             ) : (
                                 <p className="text-[#0f1b0e] text-lg font-bold leading-tight capitalize">{displayGoal}</p>
@@ -160,15 +181,14 @@ export default function Profile({ userProfile, onUpdateProfile, onBack }: Profil
                             {isEditing ? (
                                 <select
                                     value={diet}
-                                    onChange={(e) => setDiet(e.target.value)}
+                                    onChange={(e) => setDiet(e.target.value as Diet)}
                                     className="text-[#0f1b0e] text-sm font-bold leading-tight bg-transparent outline-none w-full text-center"
                                 >
-                                    <option value="Any">Any</option>
-                                    <option value="Veg">Veg</option>
-                                    <option value="Non-Veg">Non-Veg</option>
-                                    <option value="Egg">Egg</option>
-                                    <option value="Vegan">Vegan</option>
-                                    <option value="Keto">Keto</option>
+                                    <option value="omnivore">No restriction</option>
+                                    <option value="vegetarian">Vegetarian</option>
+                                    <option value="vegan">Vegan</option>
+                                    <option value="halal">Halal</option>
+                                    <option value="pescatarian">Pescatarian</option>
                                 </select>
                             ) : (
                                 <p className="text-[#0f1b0e] text-lg font-bold leading-tight">{diet}</p>
@@ -202,6 +222,43 @@ export default function Profile({ userProfile, onUpdateProfile, onBack }: Profil
                     </div>
                 </div>
 
+                {isEditing && (
+                    <section className="px-6 pb-6">
+                        <label className="mb-2 block text-sm font-bold text-[#0f1b0e]" htmlFor="activity-level">Activity level</label>
+                        <select
+                            id="activity-level"
+                            value={activityLevel}
+                            onChange={(event) => setActivityLevel(event.target.value as ActivityLevel)}
+                            className="w-full rounded-xl bg-white p-3 text-sm"
+                        >
+                            <option value="sedentary">Mostly sitting</option>
+                            <option value="light">Lightly active</option>
+                            <option value="moderate">Moderately active</option>
+                            <option value="active">Very active</option>
+                            <option value="very_active">Extremely active</option>
+                        </select>
+                        <h3 className="mt-5 text-sm font-bold text-[#0f1b0e]">Daily macro targets</h3>
+                        <div className="mt-2 grid grid-cols-3 gap-3">
+                            {[
+                                { label: 'Protein (g)', value: protein, setValue: setProtein },
+                                { label: 'Carbs (g)', value: carbs, setValue: setCarbs },
+                                { label: 'Fats (g)', value: fats, setValue: setFats },
+                            ].map((macro) => (
+                                <label key={macro.label} className="text-xs font-semibold text-[#526651]">
+                                    {macro.label}
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        value={macro.value}
+                                        onChange={(event) => macro.setValue(Number(event.target.value))}
+                                        className="mt-1 w-full rounded-lg bg-white p-2 text-sm text-[#0f1b0e]"
+                                    />
+                                </label>
+                            ))}
+                        </div>
+                        {error && <p className="mt-4 text-sm text-red-700" role="alert">{error}</p>}
+                    </section>
+                )}
                 <h3 className="text-[#0f1b0e] text-lg font-bold leading-tight tracking-[-0.015em] px-6 pb-4 pt-2">Preferences</h3>
                 <div className="flex flex-col gap-3 px-6">
                     <div className="group flex items-center gap-4 bg-[#ffffff] p-4 rounded-xl shadow-[0_4px_20px_-2px_rgba(27,33,26,0.05)] w-full text-left">

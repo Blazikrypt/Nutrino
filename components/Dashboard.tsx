@@ -13,6 +13,8 @@ interface DailyMacros {
     fats: MacroStats;
 }
 
+import type { UserProfileForm } from '../lib/database.types';
+
 interface DashboardProps {
     onAddFood: () => void;
     onSuggestMeal: () => void;
@@ -24,7 +26,7 @@ interface DashboardProps {
     onProfile: () => void;
     onMenu: () => void;
     isMenuOpen?: boolean;
-    userProfile: any;
+    userProfile: Partial<UserProfileForm>;
 }
 
 export default function Dashboard({
@@ -68,8 +70,6 @@ export default function Dashboard({
                             className="p-3 rounded-full text-text-dark hover:bg-primary/10 active:bg-primary/20 transition-all duration-300 relative"
                         >
                             <span className="material-symbols-outlined text-[28px] font-medium" style={{ fontVariationSettings: "'wght' 500" }}>notifications</span>
-                            {/* Notification Dot */}
-                            <span className="absolute top-3 right-3.5 w-2 h-2 bg-red-500 rounded-full border-2 border-background"></span>
                         </button>
                         <button
                             onClick={onProfile}

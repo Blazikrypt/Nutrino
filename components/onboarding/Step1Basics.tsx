@@ -1,25 +1,44 @@
 'use client';
 
+import { useState } from 'react';
+import type { OnboardingData } from '../../lib/database.types';
+
 interface Step1BasicsProps {
-    data: {
-        name: string;
-        age: string;
-        gender: string;
-        height: string;
-        weight: string;
-    };
-    onUpdate: (data: any) => void;
+    data: Pick<OnboardingData, 'name' | 'age' | 'gender' | 'height' | 'weight'>;
+    onUpdate: (data: Partial<OnboardingData>) => void;
     onNext: () => void;
 }
 
 export default function Step1Basics({ data, onUpdate, onNext }: Step1BasicsProps) {
+    const [error, setError] = useState('');
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
-        onUpdate({ [name]: value });
+        onUpdate({ [name]: value } as Partial<OnboardingData>);
     };
 
-    const handleGenderSelect = (gender: string) => {
+    const handleGenderSelect = (gender: OnboardingData['gender']) => {
         onUpdate({ gender });
+    };
+
+    const handleNext = () => {
+        const age = Number(data.age);
+        const height = Number(data.height);
+        const weight = Number(data.weight);
+
+        if (!data.name.trim()) {
+            setError('Enter your name to continue.');
+        } else if (!Number.isInteger(age) || age < 18 || age > 100) {
+            setError('Enter an age between 18 and 100.');
+        } else if (!Number.isFinite(height) || height < 100 || height > 250) {
+            setError('Enter a height between 100 and 250 cm.');
+        } else if (!Number.isFinite(weight) || weight < 30 || weight > 350) {
+            setError('Enter a weight between 30 and 350 kg.');
+        } else if (!data.gender) {
+            setError('Choose an option for gender.');
+        } else {
+            setError('');
+            onNext();
+        }
     };
 
     return (
@@ -47,6 +66,7 @@ export default function Step1Basics({ data, onUpdate, onNext }: Step1BasicsProps
                                 id="name"
                                 placeholder="Enter your name"
                                 type="text"
+                                autoComplete="name"
                             />
                             <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-300">
                                 <span className="material-symbols-outlined">person</span>
@@ -66,6 +86,8 @@ export default function Step1Basics({ data, onUpdate, onNext }: Step1BasicsProps
                                 inputMode="numeric"
                                 placeholder="e.g. 28"
                                 type="number"
+                                min="18"
+                                max="100"
                             />
                             <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-300">
                                 <span className="material-symbols-outlined">cake</span>
@@ -77,16 +99,21 @@ export default function Step1Basics({ data, onUpdate, onNext }: Step1BasicsProps
                     <div className="flex flex-col gap-3">
                         <label className="text-text-dark text-base font-bold ml-1 font-body">Gender</label>
                         <div className="flex flex-wrap gap-3">
-                            {['Female', 'Male', 'Non-binary'].map((g) => (
+                            {([
+                                ['female', 'Female'],
+                                ['male', 'Male'],
+                                ['non_binary', 'Non-binary'],
+                            ] as const).map(([value, label]) => (
                                 <button
-                                    key={g}
-                                    onClick={() => handleGenderSelect(g)}
-                                    className={`flex h-12 flex-1 min-w-[100px] cursor-pointer items-center justify-center gap-x-2 rounded-full px-6 transition-all active:scale-95 border-2 ${data.gender === g
+                                    key={value}
+                                    type="button"
+                                    onClick={() => handleGenderSelect(value)}
+                                    className={`flex h-12 flex-1 min-w-[100px] cursor-pointer items-center justify-center gap-x-2 rounded-full px-6 transition-all active:scale-95 border-2 ${data.gender === value
                                         ? 'bg-primary/20 border-primary text-text-dark font-bold'
                                         : 'bg-white border-transparent text-text-light font-medium shadow-soft hover:bg-gray-50'
                                         }`}
                                 >
-                                    {g}
+                                    {label}
                                 </button>
                             ))}
                         </div>
@@ -106,6 +133,9 @@ export default function Step1Basics({ data, onUpdate, onNext }: Step1BasicsProps
                                     inputMode="numeric"
                                     placeholder="0"
                                     type="number"
+                                    min="100"
+                                    max="250"
+                                    step="0.1"
                                 />
                                 <span className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-400 font-medium pointer-events-none">cm</span>
                             </div>
@@ -122,9 +152,13 @@ export default function Step1Basics({ data, onUpdate, onNext }: Step1BasicsProps
                                     inputMode="numeric"
                                     placeholder="0"
                                     type="number"
+                                    min="30"
+                                    max="350"
+                                    step="0.1"
                                 />
                                 <span className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-400 font-medium pointer-events-none">kg</span>
                             </div>
+                            {error && <p className="mt-5 text-center text-sm font-medium text-red-700" role="alert">{error}</p>}
                         </div>
                     </div>
                 </div>
@@ -132,7 +166,7 @@ export default function Step1Basics({ data, onUpdate, onNext }: Step1BasicsProps
 
             <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-background via-background/95 to-transparent pt-12 pb-8 px-6">
                 <button
-                    onClick={onNext}
+                    onClick={handleNext}
                     className="group w-full h-14 rounded-full bg-primary hover:bg-[#4bd83b] text-text-dark text-lg font-bold shadow-glow flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
                 >
                     Next

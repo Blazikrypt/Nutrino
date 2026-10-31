@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { generateMealDetails } from '@/app/actions';
+import type { UserProfileForm } from '../lib/database.types';
 
 interface MealDetailsProps {
     mealName: string;
+    userProfile: Partial<UserProfileForm>;
     onBack: () => void;
     onAddLog: (meal: any) => void;
 }
@@ -24,33 +26,34 @@ interface MealDetailData {
     steps: Array<{ title: string; description: string }>;
 }
 
-export default function MealDetails({ mealName, onBack, onAddLog }: MealDetailsProps) {
+export default function MealDetails({ mealName, userProfile, onBack, onAddLog }: MealDetailsProps) {
     const [details, setDetails] = useState<MealDetailData | null>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+
+    const fetchDetails = useCallback(async () => {
+        setLoading(true);
+        setError('');
+        try {
+            const result = await generateMealDetails(mealName, userProfile);
+            if (result.success) {
+                setDetails(result.data);
+            } else {
+                setDetails(null);
+                setError(result.error);
+            }
+        } catch (error) {
+            console.error('Failed to load meal details', error);
+            setDetails(null);
+            setError('Could not load recipe details. Please try again.');
+        } finally {
+            setLoading(false);
+        }
+    }, [mealName, userProfile]);
 
     useEffect(() => {
-        const fetchDetails = async () => {
-            setLoading(true);
-            try {
-                // Get user profile for context
-                const storedProfile = localStorage.getItem('nutrino_user_profile');
-                const userProfile = storedProfile ? JSON.parse(storedProfile) : {};
-
-                const result = await generateMealDetails(mealName, userProfile);
-                if (result.success) {
-                    setDetails(result.data);
-                }
-            } catch (error) {
-                console.error('Failed to load meal details', error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        if (mealName) {
-            fetchDetails();
-        }
-    }, [mealName]);
+        if (mealName) void fetchDetails();
+    }, [fetchDetails, mealName]);
 
     if (loading) {
         return (
@@ -63,7 +66,24 @@ export default function MealDetails({ mealName, onBack, onAddLog }: MealDetailsP
         );
     }
 
-    if (!details) return null;
+    if (!details) {
+        return (
+            <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background px-6 text-center">
+                <p className="font-medium text-red-700" role="alert">{error || 'Recipe details are unavailable.'}</p>
+                <button
+                    type="button"
+                    onClick={() => void fetchDetails()}
+                    disabled={loading}
+                    className="rounded-full bg-primary px-6 py-3 font-bold text-white disabled:opacity-50"
+                >
+                    {loading ? 'Retrying…' : 'Retry'}
+                </button>
+                <button type="button" onClick={onBack} className="font-semibold text-slate-600">
+                    Back to suggestions
+                </button>
+            </div>
+        );
+    }
 
     // Tailwind config from user snippet maps to these arbitrary values or existing globals.
     // primary: #45e236

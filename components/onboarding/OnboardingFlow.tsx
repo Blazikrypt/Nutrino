@@ -4,34 +4,44 @@ import { useState } from 'react';
 import Step1Basics from './Step1Basics';
 import Step2Goals from './Step2Goals';
 import Step3Environment from './Step3Environment';
+import type { OnboardingData } from '../../lib/database.types';
 
 interface OnboardingFlowProps {
-    onComplete: (data?: any) => void;
+    onComplete: (data: OnboardingData) => Promise<void>;
 }
 
 export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     const [step, setStep] = useState(1);
-    const [formData, setFormData] = useState({
+    const [isCompleting, setIsCompleting] = useState(false);
+    const [completionError, setCompletionError] = useState('');
+    const [formData, setFormData] = useState<OnboardingData>({
         name: '',
         age: '',
-        gender: 'Female',
+        gender: '',
         height: '',
         weight: '',
-        goal: 'fat_loss',
-        diet: 'Non-veg',
+        goal: '',
+        diet: '',
+        activityLevel: '',
         location: '',
         allergies: ''
     });
 
-    const updateData = (newData: any) => {
-        setFormData(prev => ({ ...prev, ...newData }));
+    const updateData = (newData: Partial<OnboardingData>) => {
+        setFormData((prev) => ({ ...prev, ...newData }));
     };
 
-    const handleComplete = () => {
-        // Save to localStorage
-        localStorage.setItem('nutrino_user_profile', JSON.stringify(formData));
-        localStorage.setItem('nutrino_onboarding_complete', 'true');
-        onComplete(formData);
+    const handleComplete = async () => {
+        setIsCompleting(true);
+        setCompletionError('');
+        try {
+            await onComplete(formData);
+        } catch (error) {
+            console.error('Failed to finish onboarding:', error);
+            setCompletionError(error instanceof Error ? error.message : 'Could not create your plan. Please try again.');
+        } finally {
+            setIsCompleting(false);
+        }
     };
 
     return (
@@ -56,6 +66,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                     data={formData}
                     onUpdate={updateData}
                     onComplete={handleComplete}
+                    isCompleting={isCompleting}
+                    completionError={completionError}
                     onBack={() => setStep(2)}
                 />
             )}

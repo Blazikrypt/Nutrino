@@ -4,9 +4,10 @@ import Image from 'next/image';
 
 interface WelcomeScreenProps {
     onStart: () => void;
+    onSignIn: () => void;
 }
 
-export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
+export default function WelcomeScreen({ onStart, onSignIn }: WelcomeScreenProps) {
     return (
         <div className="relative flex h-full min-h-screen w-full flex-col justify-between overflow-hidden bg-background transition-colors duration-300 antialiased font-display">
             {/* Background Blobs */}
@@ -39,13 +40,20 @@ export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
             </div>
 
             {/* Footer / CTA */}
-            <div className="z-10 w-full px-6 pb-12 pt-4 bg-gradient-to-t from-background via-background to-transparent flex justify-center max-w-md mx-auto">
+            <div className="z-10 w-full px-6 pb-12 pt-4 bg-gradient-to-t from-background via-background to-transparent flex flex-col items-center max-w-md mx-auto">
                 <button
                     onClick={onStart}
                     className="group relative flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-full h-14 bg-primary hover:opacity-90 active:scale-[0.98] transition-all duration-200 shadow-lg shadow-primary/20"
                 >
                     <span className="relative z-10 text-white text-[17px] font-bold tracking-wide font-body">Get Started</span>
                     <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+                </button>
+                <button
+                    type="button"
+                    onClick={onSignIn}
+                    className="mt-4 text-sm font-bold text-text-dark underline"
+                >
+                    Already have an account? Sign in
                 </button>
             </div>
         </div>

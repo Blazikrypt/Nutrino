@@ -15,6 +15,30 @@ export default function AddFoodChoice({ onBack, onAnalysisComplete, onManualEntr
     const galleryInputRef = useRef<HTMLInputElement>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [showSourceChoice, setShowSourceChoice] = useState(false);
+    const [imageToAnalyze, setImageToAnalyze] = useState<{ blob: Blob; imageSrc: string } | null>(null);
+    const [analysisError, setAnalysisError] = useState('');
+
+    const runAnalysis = async (blob: Blob, imageSrc: string) => {
+        setIsAnalyzing(true);
+        setAnalysisError('');
+
+        try {
+            const formData = new FormData();
+            formData.append('image', blob, 'image.jpg');
+            const result = await analyzeFoodImage(formData);
+
+            if (result.success) {
+                onAnalysisComplete(result.data, imageSrc);
+            } else {
+                setAnalysisError(result.error);
+            }
+        } catch (error) {
+            console.error('Image analysis request failed:', error);
+            setAnalysisError('Could not analyze the image. Please try again.');
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
 
     // Initial Click - Show Choice
     const handleScanClick = () => {
@@ -38,29 +62,21 @@ export default function AddFoodChoice({ onBack, onAnalysisComplete, onManualEntr
         // Create a preview URL immediately
         const imageSrc = URL.createObjectURL(file);
 
-        setIsAnalyzing(true);
         setShowSourceChoice(false); // Ensure modal is closed
+        setImageToAnalyze(null);
+        setAnalysisError('');
 
         try {
             // Resize image to avoid payload limits (max 1024px)
             const resizedBlob = await resizeImage(file, 1024, 0.8);
-
-            // Create FormData
-            const formData = new FormData();
-            formData.append('image', resizedBlob, 'image.jpg');
-
-            const result = await analyzeFoodImage(formData);
-
-            if (result.success) {
-                onAnalysisComplete(result.data, imageSrc);
-            } else {
-                alert('Analysis failed: ' + (result.error || 'Unknown error'));
-            }
+            const pendingImage = { blob: resizedBlob, imageSrc };
+            setImageToAnalyze(pendingImage);
+            await runAnalysis(pendingImage.blob, pendingImage.imageSrc);
         } catch (error) {
             console.error('Error processing image:', error);
-            alert('Failed to process image. Please try again.');
+            URL.revokeObjectURL(imageSrc);
+            setAnalysisError('Could not prepare the image. Please choose it again.');
         } finally {
-            setIsAnalyzing(false);
             // Reset inputs so same file can be selected again if needed
             if (cameraInputRef.current) cameraInputRef.current.value = '';
             if (galleryInputRef.current) galleryInputRef.current.value = '';
@@ -177,6 +193,22 @@ export default function AddFoodChoice({ onBack, onAnalysisComplete, onManualEntr
                         </button>
                     </div>
                 </div>
+
+                {analysisError && (
+                    <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-center" role="alert">
+                        <p className="text-sm font-medium text-red-700">{analysisError}</p>
+                        {imageToAnalyze && (
+                            <button
+                                type="button"
+                                onClick={() => runAnalysis(imageToAnalyze.blob, imageToAnalyze.imageSrc)}
+                                disabled={isAnalyzing}
+                                className="mt-3 rounded-full bg-white px-5 py-2 text-sm font-bold text-red-700 shadow-sm disabled:opacity-50"
+                            >
+                                {isAnalyzing ? 'Retrying…' : 'Retry'}
+                            </button>
+                        )}
+                    </div>
+                )}
 
                 {/* Footer Spacer */}
                 <div className="h-6 shrink-0"></div>

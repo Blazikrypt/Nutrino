@@ -21,34 +21,31 @@ Most nutrition trackers rely on massive manual food databases that are tedious t
 5. **Suggestions** — on request, Gemini generates meal suggestions filtered by preference (e.g. "High Protein"), and can expand any suggestion into a full recipe with ingredients and steps
 6. **Dashboard** — daily macro bars update live against the personalized targets from onboarding
 
-Every AI call follows the same resilience pattern: build prompt → call Gemini → parse JSON → **on any failure, fall back to mock data** rather than crashing or showing an error.
+AI calls try Gemini 2.5 Flash, then Flash Lite, then Pro. Each response is parsed and checked against the expected data shape before it is accepted. If every model fails, the UI shows an error and lets the user retry; the app does not silently substitute mock nutrition data.
 
 ```mermaid
 sequenceDiagram
     participant U as User
     participant P as page.tsx (client)
     participant SA as Server Actions
-    participant G as Gemini 2.5 Flash
-    participant LS as localStorage
+    participant G as Gemini model fallback
+    participant DB as Supabase
 
     U->>P: Complete onboarding (3 steps)
     P->>SA: calculateDailyTargets(profile)
     SA->>G: Prompt with profile data
     G-->>SA: {calories, protein, carbs, fats}
     SA-->>P: Daily targets
-    P->>LS: Save profile + targets
+    P->>DB: Save profile + targets
 
     U->>P: Add food (photo or text)
     P->>SA: analyzeFoodImage() / analyzeFoodText()
     SA->>G: Image/text + prompt
-    alt Gemini responds
-        G-->>SA: {food_name, calories, protein, carbs, fats}
-    else Gemini fails / quota exceeded
-        SA-->>SA: Fall back to mock data
-    end
+    SA->>G: Try Flash, then Flash Lite, then Pro
+    G-->>SA: Validated response or retryable error
     SA-->>P: Analysis result
     U->>P: Confirm "Add"
-    P->>LS: Append to daily log
+    P->>DB: Append to user-scoped daily log
     P-->>U: Dashboard macro bars update
 ```
 
@@ -56,18 +53,20 @@ sequenceDiagram
 
 ## Architecture
 
-There's no separate backend service and no database — Next.js Server Actions **are** the backend, and the browser's `localStorage` **is** the database.
+Supabase Auth manages email/password accounts, and Supabase Postgres stores profiles and date-keyed meal logs. Next.js Server Actions handle authenticated Gemini requests. Row-level security policies restrict profile and meal-log access to the owning user.
 
 ```mermaid
 graph LR
     UI["UI Components<br/>Welcome · Onboarding · Dashboard<br/>Add Food · Analysis · Suggestions · Profile"]
     STATE["page.tsx<br/>view-state orchestrator"]
-    LS[("localStorage")]
+    AUTH["Supabase Auth"]
+    DB[("Supabase Postgres<br/>profiles · meal_logs")]
     SA["Server Actions<br/>(actions.ts)"]
-    G["Gemini 2.5 Flash"]
+    G["Gemini model fallback"]
 
     UI --> STATE
-    STATE <-->|read / write| LS
+    STATE <-->|session| AUTH
+    STATE <-->|read / write with RLS| DB
     STATE -->|calls| SA
     SA -->|prompt| G
     G -->|JSON| SA
@@ -85,9 +84,9 @@ graph LR
 |---|---|
 | **Server Actions instead of a REST API** | `'use server'` functions in `actions.ts` run only on the server — the `GEMINI_API_KEY` never reaches the browser, with none of the boilerplate of standing up `/api` routes |
 | **Gemini as the only external dependency** | Every "smart" feature — food analysis, meal suggestions, recipe details, BMR/TDEE calculation — is a single Gemini prompt, instead of maintaining a nutrition database |
-| **Mock-data fallback on every AI call** | If Gemini is down, rate-limited, or returns malformed JSON, the app returns hardcoded fallback data instead of crashing — the user experience degrades gracefully rather than breaking |
+| **Gemini model fallback** | AI actions try Flash, Flash Lite, and Pro in sequence, validate the response shape, and offer a user-triggered retry if all models fail |
 | **`view`-state routing instead of file-based routes** | The whole app is one client component; simpler state management for a fast-moving solo project, at the cost of no deep-linkable URLs |
-| **localStorage instead of a database** | Zero backend infra to run or pay for while validating the product — Supabase env vars already exist in `.env` for when persistence needs to move server-side |
+| **Supabase Auth + Postgres** | Users create accounts before onboarding; profiles and meals persist across sessions and are protected by row-level security |
 | **Client-side image resize before upload** | `imageUtils.ts` downscales photos to 1024px / JPEG quality 0.8 via canvas before they're sent to the server action, cutting upload size and Gemini image-token cost |
 
 ---
@@ -112,9 +111,16 @@ nutrino/
 │   ├── layout.tsx        # Root shell 
 │   ├── page.tsx           # Central orchestrator 
 │   ├── actions.ts          # Server Actions 
+│   ├── auth/callback/     # Email confirmation callback
 │   └── globals.css
 ├── lib/
-│   └── imageUtils.ts       
+│   ├── gemini.ts           # Model fallback and response validation
+│   ├── database.types.ts   # App data model
+│   ├── imageUtils.ts
+│   └── supabase/           # Browser and server clients
+├── proxy.ts                # Refresh Supabase auth cookies
+└── supabase/
+    └── migrations/         # Profiles, meal logs, and RLS policies
 └── components/
     ├── WelcomeScreen.tsx
     ├── onboarding/
@@ -138,13 +144,12 @@ nutrino/
 
 ## State & Persistence
 
-All state lives in `page.tsx` via `useState`, persisted to three `localStorage` keys:
+UI state lives in `page.tsx`; durable account data is stored in Supabase:
 
-| Key | Holds |
+| Table | Holds |
 |---|---|
-| `nutrino_onboarding_complete` | `"true"` flag — whether onboarding has run |
-| `nutrino_user_profile` | User's onboarding answers + calculated daily targets |
-| `nutrino_daily_logs` | All logged meals, keyed by date (`Record<string, LoggedMeal[]>`) |
+| `profiles` | Onboarding answers, activity level, recommended/editable daily targets |
+| `meal_logs` | User-owned meals, portion, macros, and browser-local calendar date |
 
 ---
 
@@ -157,10 +162,18 @@ npm install
 
 # configure environment
 cp .env.example .env
-# set GEMINI_API_KEY
+# set GEMINI_API_KEY, NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+
+# In Supabase SQL Editor, run:
+# supabase/migrations/202610310001_initial_schema.sql
+
+# In Supabase Auth settings, enable email/password and allow:
+# http://localhost:3000/auth/callback
 
 npm run dev
 ```
+
+Accounts are required before onboarding. If Supabase email confirmation is enabled, users must confirm their email and then sign in. Set the Supabase Site URL and allowed redirect URLs for both local development and the deployed app.
 
 ---
 

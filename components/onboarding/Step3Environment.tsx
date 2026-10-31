@@ -1,19 +1,30 @@
 'use client';
 
+import type { OnboardingData } from '../../lib/database.types';
+
 interface Step3EnvironmentProps {
-    data: {
-        location: string;
-        allergies: string;
-    };
-    onUpdate: (data: any) => void;
+    data: Pick<OnboardingData, 'location' | 'allergies'>;
+    onUpdate: (data: Partial<OnboardingData>) => void;
     onComplete: () => void;
+    isCompleting: boolean;
+    completionError: string;
     onBack: () => void;
 }
 
-export default function Step3Environment({ data, onUpdate, onComplete, onBack }: Step3EnvironmentProps) {
+export default function Step3Environment({
+    data,
+    onUpdate,
+    onComplete,
+    isCompleting,
+    completionError,
+    onBack,
+}: Step3EnvironmentProps) {
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-        const { id, value } = e.target;
-        onUpdate({ [id]: value });
+        if (e.target.id === 'location') {
+            onUpdate({ location: e.target.value });
+        } else {
+            onUpdate({ allergies: e.target.value });
+        }
     };
 
     return (
@@ -77,7 +88,7 @@ export default function Step3Environment({ data, onUpdate, onComplete, onBack }:
                             ></textarea>
                         </div>
                         <p className="pl-1 text-sm text-gray-500 font-body">
-                            We'll hide recipes containing these ingredients.
+                            We&apos;ll hide recipes containing these ingredients.
                         </p>
                     </div>
                 </div>
@@ -86,8 +97,19 @@ export default function Step3Environment({ data, onUpdate, onComplete, onBack }:
 
                 <div className="mt-8 flex flex-col items-center gap-4">
                     <span className="text-sm font-semibold text-gray-400">You’re all set.</span>
-                    <button onClick={onComplete} className="relative w-full overflow-hidden rounded-full bg-primary p-5 text-center font-bold text-text-dark shadow-lg shadow-primary/20 transition-all hover:bg-primary/90 hover:shadow-primary/30 active:scale-[0.98]">
-                        <span className="relative z-10 text-lg">Create My Plan</span>
+                    {completionError && (
+                        <p className="w-full text-center text-sm font-medium text-red-700" role="alert">
+                            {completionError}
+                        </p>
+                    )}
+                    <button
+                        onClick={onComplete}
+                        disabled={isCompleting}
+                        className="relative w-full overflow-hidden rounded-full bg-primary p-5 text-center font-bold text-text-dark shadow-lg shadow-primary/20 transition-all hover:bg-primary/90 hover:shadow-primary/30 active:scale-[0.98] disabled:cursor-wait disabled:opacity-70"
+                    >
+                        <span className="relative z-10 text-lg">
+                            {isCompleting ? 'Creating your plan…' : completionError ? 'Retry' : 'Create My Plan'}
+                        </span>
                         <div className="absolute inset-0 bg-gradient-to-tr from-white/20 to-transparent opacity-0 hover:opacity-100 transition-opacity"></div>
                     </button>
                 </div>

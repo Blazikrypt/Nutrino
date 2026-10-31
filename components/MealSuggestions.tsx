@@ -9,6 +9,7 @@ interface MealSuggestionsProps {
     onSelectMeal: (mealName: string) => void;
     suggestions: MealSuggestion[];
     loading: boolean;
+    error: string;
     filter: string;
     onFetch: (filter: string) => void;
 }
@@ -55,6 +56,7 @@ export default function MealSuggestions({
     onSelectMeal,
     suggestions,
     loading,
+    error,
     filter,
     onFetch
 }: MealSuggestionsProps) {
@@ -116,6 +118,17 @@ export default function MealSuggestions({
                         <div className="flex flex-col items-center justify-center py-12 gap-4">
                             <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
                             <p className="text-slate-500 font-medium">Asking Gemini...</p>
+                        </div>
+                    ) : error ? (
+                        <div className="flex flex-col items-center gap-4 rounded-2xl bg-white p-6 text-center shadow-sm" role="alert">
+                            <p className="text-sm font-medium text-red-700">{error}</p>
+                            <button
+                                type="button"
+                                onClick={() => onFetch(filter)}
+                                className="rounded-full bg-primary px-6 py-3 text-sm font-bold text-white"
+                            >
+                                Retry
+                            </button>
                         </div>
                     ) : suggestions.map((meal, index) => {
                         const style = getDietStyle(meal.diet_type);

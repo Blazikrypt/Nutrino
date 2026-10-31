@@ -13,18 +13,25 @@ export default function ManualEntry({ onBack, onAdd }: ManualEntryProps) {
     const [quantity, setQuantity] = useState('');
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [result, setResult] = useState<any>(null);
+    const [analysisError, setAnalysisError] = useState('');
 
     const handleAnalyze = async () => {
         if (!description.trim()) return;
 
         setIsAnalyzing(true);
-        const apiResult = await analyzeFoodText(description + (quantity ? ` (${quantity})` : ''));
-        setIsAnalyzing(false);
-
-        if (apiResult.success) {
-            setResult(apiResult.data);
-        } else {
-            alert('Analysis failed: ' + (apiResult.error || 'Unknown error'));
+        setAnalysisError('');
+        try {
+            const apiResult = await analyzeFoodText(description + (quantity ? ` (${quantity})` : ''));
+            if (apiResult.success) {
+                setResult(apiResult.data);
+            } else {
+                setAnalysisError(apiResult.error);
+            }
+        } catch (error) {
+            console.error('Food text analysis request failed:', error);
+            setAnalysisError('Could not analyze the food description. Please try again.');
+        } finally {
+            setIsAnalyzing(false);
         }
     };
 
@@ -104,11 +111,16 @@ export default function ManualEntry({ onBack, onAdd }: ManualEntryProps) {
                                 </>
                             ) : (
                                 <>
-                                    <span className="material-symbols-outlined">auto_awesome</span>
-                                    <span>Analyze Food</span>
+                                    <span className="material-symbols-outlined">{analysisError ? 'refresh' : 'auto_awesome'}</span>
+                                    <span>{analysisError ? 'Retry Analysis' : 'Analyze Food'}</span>
                                 </>
                             )}
                         </button>
+                    )}
+                    {analysisError && (
+                        <p className="text-center text-sm font-medium text-red-700" role="alert">
+                            {analysisError}
+                        </p>
                     )}
                 </div>
 

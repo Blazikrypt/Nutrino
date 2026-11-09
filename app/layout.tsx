@@ -1,5 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Poppins, Lato, Manrope } from "next/font/google";
+import PwaRegister from "../components/PwaRegister";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -22,7 +23,25 @@ const manrope = Manrope({
 
 export const metadata: Metadata = {
   title: "Nutrino - Meal Suggestions",
-  description: "Personalized health assistant using Gemini 3",
+  description: "Your personalized nutrition and meal tracking assistant.",
+  applicationName: "Nutrino",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Nutrino",
+  },
+  icons: {
+    icon: [
+      { url: "/pwa-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/pwa-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: "/pwa-192.png",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#FEFDF5",
 };
 
 export default function RootLayout({
@@ -38,6 +57,7 @@ export default function RootLayout({
       <body
         className={`${poppins.variable} ${lato.variable} ${manrope.variable} antialiased bg-background text-text-dark font-body`}
       >
+        <PwaRegister />
         {children}
       </body>
     </html>

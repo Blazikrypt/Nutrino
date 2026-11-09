@@ -162,7 +162,7 @@ npm install
 
 # configure environment
 cp .env.example .env
-# set GEMINI_API_KEY, NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+# set GEMINI_API_KEY, PROJECT_URL, and PUBLISHABLE_KEY
 
 # In Supabase SQL Editor, run:
 # supabase/migrations/202610310001_initial_schema.sql
@@ -173,7 +173,13 @@ cp .env.example .env
 npm run dev
 ```
 
+`DIRECT_CONNECT_URL` is only for trusted server-side database administration; the web app does not use it. Never expose it with a `NEXT_PUBLIC_` variable.
+
 Accounts are required before onboarding. If Supabase email confirmation is enabled, users must confirm their email and then sign in. Set the Supabase Site URL and allowed redirect URLs for both local development and the deployed app.
+
+## Progressive Web App
+
+The production deployment can be installed from supported browsers. The service worker caches the app shell and versioned Next.js static assets, and serves the shell/offline page when a navigation cannot reach the network. Authentication, AI requests, and meal/profile reads or writes still require an internet connection; private user data and API responses are never cached. Service-worker registration is disabled in development.
 
 ---
 

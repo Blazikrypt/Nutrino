@@ -85,7 +85,7 @@ export default function WelcomeScreen({ onStart, onSignIn }: WelcomeScreenProps)
                     <div className="mt-10 flex flex-wrap items-center gap-5">
                         <button
                             onClick={onStart}
-                            className="rounded-full bg-text-dark px-8 py-4 text-base font-bold text-white shadow-xl shadow-text-dark/15 transition hover:-translate-y-0.5 hover:bg-emerald-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-700"
+                            className="rounded-full bg-[#005f46] px-8 py-4 text-base font-bold text-white shadow-xl shadow-emerald-950/20 transition hover:-translate-y-0.5 hover:bg-[#004b38] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-700"
                         >
                             Get started
                         </button>

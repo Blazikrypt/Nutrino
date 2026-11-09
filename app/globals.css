@@ -12,6 +12,8 @@
   --color-surface-dark: #1A2C18;
   --color-text-main: #0f1b0e;
   --color-text-sub: #546e52;
+  --color-text-dark: #0f1b0e;
+  --color-text-light: #546e52;
 
   --color-oat-milk: #FEFDF5;
 
@@ -45,6 +47,9 @@
 :root {
   --background: var(--color-oat-milk);
   --foreground: var(--color-text-main);
+  --font-poppins: "Poppins", Arial, sans-serif;
+  --font-lato: "Lato", Arial, sans-serif;
+  --font-manrope: "Manrope", Arial, sans-serif;
 }
 
 body {

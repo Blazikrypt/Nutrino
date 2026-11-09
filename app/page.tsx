@@ -95,6 +95,7 @@ export default function Home() {
   const [userId, setUserId] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [appError, setAppError] = useState('');
+  const [authMode, setAuthMode] = useState<'sign-in' | 'sign-up'>('sign-up');
 
   // Data State
   const [dailyLogs, setDailyLogs] = useState<Record<string, LoggedMeal[]>>({});
@@ -259,7 +260,8 @@ export default function Home() {
     setDailyLogs((logs) => ({ ...logs, [key]: [...(logs[key] || []), newMeal] }));
   };
 
-  const handleOpenAuth = () => {
+  const handleOpenAuth = (mode: 'sign-in' | 'sign-up') => {
+    setAuthMode(mode);
     setView('auth');
   };
 
@@ -561,11 +563,16 @@ export default function Home() {
   }
 
   if (view === 'welcome') {
-    return <WelcomeScreen onStart={handleOpenAuth} onSignIn={handleOpenAuth} />;
+    return (
+      <WelcomeScreen
+        onStart={() => handleOpenAuth('sign-up')}
+        onSignIn={() => handleOpenAuth('sign-in')}
+      />
+    );
   }
 
   if (view === 'auth') {
-    return <AuthScreen onBack={() => setView('welcome')} />;
+    return <AuthScreen initialMode={authMode} onBack={() => setView('welcome')} />;
   }
 
   if (view === 'onboarding') {
@@ -643,6 +650,7 @@ export default function Home() {
         onSuggestMeal={handleSuggestMeal}
         currentDate={currentDate}
         macros={calculateMacros()}
+        meals={getCurrentDayLogs()}
         onPrevDay={handlePrevDay}
         onNextDay={handleNextDay}
         onNotifications={handleNotifications}

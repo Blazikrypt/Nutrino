@@ -5,10 +5,11 @@ import { createClient } from '../lib/supabase/client';
 
 interface AuthScreenProps {
     onBack: () => void;
+    initialMode: 'sign-in' | 'sign-up';
 }
 
-export default function AuthScreen({ onBack }: AuthScreenProps) {
-    const [mode, setMode] = useState<'sign-in' | 'sign-up'>('sign-up');
+export default function AuthScreen({ onBack, initialMode }: AuthScreenProps) {
+    const [mode, setMode] = useState<'sign-in' | 'sign-up'>(initialMode);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [submitting, setSubmitting] = useState(false);

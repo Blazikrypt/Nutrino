@@ -13,6 +13,14 @@ interface DailyMacros {
     fats: MacroStats;
 }
 
+interface DashboardMeal {
+    id: string;
+    name: string;
+    portion: string;
+    calories: number;
+    timestamp: number;
+}
+
 import type { UserProfileForm } from '../lib/database.types';
 
 interface DashboardProps {
@@ -20,6 +28,7 @@ interface DashboardProps {
     onSuggestMeal: () => void;
     currentDate: Date;
     macros: DailyMacros;
+    meals: DashboardMeal[];
     onPrevDay: () => void;
     onNextDay: () => void;
     onNotifications: () => void;
@@ -34,6 +43,7 @@ export default function Dashboard({
     onSuggestMeal,
     currentDate,
     macros,
+    meals,
     onPrevDay,
     onNextDay,
     onNotifications,
@@ -45,6 +55,9 @@ export default function Dashboard({
     // Determine date display
     const isToday = new Date().toDateString() === currentDate.toDateString();
     const dateText = isToday ? "Today's Nutrition" : currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: isToday ? undefined : '2-digit' });
+    const mealsTitle = isToday
+        ? "Today's meals"
+        : `Meals for ${currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
 
     // Calculate percentages for bars
     const getPercent = (current: number, target: number) => Math.min(100, Math.max(0, (current / target) * 100));
@@ -180,6 +193,48 @@ export default function Dashboard({
                         </div>
                     </div>
                 </div>
+
+                <section aria-labelledby="daily-meals-heading" className="flex flex-col gap-4">
+                    <div className="flex items-center justify-between px-1">
+                        <h2 id="daily-meals-heading" className="text-lg font-bold text-text-dark font-display">{mealsTitle}</h2>
+                        <span className="text-sm font-semibold text-text-light">
+                            {meals.length} {meals.length === 1 ? 'meal' : 'meals'}
+                        </span>
+                    </div>
+
+                    {meals.length > 0 ? (
+                        <ul className="flex flex-col gap-3">
+                            {meals.map((meal) => (
+                                <li key={meal.id} className="flex items-center gap-3 rounded-2xl border border-black/5 bg-white p-3.5 shadow-soft">
+                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                                        <span className="material-symbols-outlined" aria-hidden="true">restaurant</span>
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="truncate text-sm font-bold text-text-dark">{meal.name}</p>
+                                        <p className="mt-0.5 truncate text-xs text-text-light">
+                                            {[meal.portion, new Date(meal.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })]
+                                                .filter(Boolean)
+                                                .join(' · ')}
+                                        </p>
+                                    </div>
+                                    <span className="shrink-0 text-xs font-bold text-text-dark">{Math.round(meal.calories)} kcal</span>
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <div className="rounded-2xl border border-dashed border-emerald-900/20 bg-white/70 px-5 py-6 text-center">
+                            <p className="text-sm font-semibold text-text-dark">No meals logged yet</p>
+                            <p className="mt-1 text-xs text-text-light">Add a meal to see your daily food log here.</p>
+                            <button
+                                type="button"
+                                onClick={onAddFood}
+                                className="mt-4 rounded-full bg-[#005f46] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#004b38] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#005f46]"
+                            >
+                                Add a meal
+                            </button>
+                        </div>
+                    )}
+                </section>
             </main>
 
             {/* Fixed Action Area */}
